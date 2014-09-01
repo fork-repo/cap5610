@@ -12,7 +12,7 @@ typedef struct magic_number_s {
 typedef struct labels_s{
   magic_number_t magic_number;
   unsigned int number_of_items;
-  unsigned char label[1];
+  unsigned char labels[1]; //[number of MNIST images]
 } labels_t;
 
 typedef struct images_s{
@@ -20,10 +20,18 @@ typedef struct images_s{
   unsigned int number_of_images;
   unsigned int number_of_rows;
   unsigned int number_of_columns;
-  unsigned char pixel[1];
+  unsigned char images[1]; //28x28x[number of MNIST images]
 } images_t;
 
-void *loadfile(char *file, long *size) {
+#define get_img(head, index) (head + 28*28*index)
+
+images_t* train_images;
+labels_t* train_labels;
+images_t* t10k_images;
+labels_t* t10k_labels;
+
+// create a buffer and load the whole file
+void *load_file(char *file, long *size) {
   FILE *fp;
   long lSize;
   char *buffer;
@@ -49,6 +57,7 @@ void *loadfile(char *file, long *size) {
   return buffer;
 }
 
+// The sizes in each dimension are 4-byte integers (MSB first, high endian, like in most non-Intel processors).
 int is_bigendian() {
   int i = 1;
   char *p = (char *)&i;
@@ -67,15 +76,16 @@ unsigned short bit16conversion(unsigned short num) {
   return (num>>8) | (num<<8);
 }
 
-int main(int argc, char ** argv) {
+// load the idx file and print the basic informations
+void load_idx(void){
   long train_images_size;
   long train_labels_size;
   long t10k_images_size;
   long t10k_labels_size;
-  images_t* train_images = ( images_t * ) loadfile( "train-images-idx3-ubyte.idx", &train_images_size);
-  labels_t* train_labels = ( labels_t * ) loadfile( "train-labels-idx1-ubyte.idx", &train_labels_size);
-  images_t* t10k_images = ( images_t * ) loadfile( "t10k-images-idx3-ubyte.idx", &t10k_images_size);
-  labels_t* t10k_labels = ( labels_t * ) loadfile( "t10k-labels-idx1-ubyte.idx", &t10k_labels_size);
+  train_images  = ( images_t * ) load_file( "train-images-idx3-ubyte.idx", &train_images_size);
+  train_labels  = ( labels_t * ) load_file( "train-labels-idx1-ubyte.idx", &train_labels_size);
+  t10k_images   = ( images_t * ) load_file( "t10k-images-idx3-ubyte.idx", &t10k_images_size);
+  t10k_labels   = ( labels_t * ) load_file( "t10k-labels-idx1-ubyte.idx", &t10k_labels_size);
 
   if(!is_bigendian()) {
     train_images->number_of_images  = bit32conversion(train_images->number_of_images);
@@ -92,6 +102,83 @@ int main(int argc, char ** argv) {
   printf("train labels: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of items: %u\n\n", train_labels_size, train_labels->magic_number.type, train_labels->magic_number.dimentions, train_labels->number_of_items);
   printf("t10k images: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of images: %u\nnumber of rows: %u\nnumber of columns: %u\n\n", t10k_images_size, t10k_images->magic_number.type, t10k_images->magic_number.dimentions, t10k_images->number_of_images, t10k_images->number_of_rows, t10k_images->number_of_columns);
   printf("t10k labels: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of items: %u\n\n", t10k_labels_size, t10k_labels->magic_number.type, t10k_labels->magic_number.dimentions, t10k_labels->number_of_items);
+}
 
+// the k-nearest neighbors is here.
+typedef struct knn_s{
+  int index;
+  double distance;
+} knn_t;
+knn_t * knn;
+unsigned int k;
+double max_distance_in_knn = 0;
+
+// tell the majority results fom knn.
+int get_prediction(){
+  unsigned char key, i;
+  unsigned int counter[10];
+
+  for(i = 0; i < 10; i++) {
+    counter[i] = 0;
+  }
+
+  for(i = 0; i < k; i++){
+    unsigned char label = train_labels->labels[(knn+i)->index];
+    counter[label]++;
+  }
+
+  for(key = 0, i = 1; i < 10; i++) {
+    if(counter[key] < counter[i]) {
+      key = i;
+    }
+  }
+  return key;
+}
+
+// caculate the distance
+double euclidean_distance(unsigned char img1[], unsigned char img2[]) {
+  int i,j;
+  double sum = 0, value;
+  for(i = 0, j= 28*28; i < j; i++) {
+    value = img1[i] - img2[i];
+    sum = sum + value*value;
+  }
+  return sum;
+}
+
+void predict(void){
+  unsigned int i,j,l;
+  unsigned char prediction, label;
+  unsigned int hit = 0;
+  for(i = 0; i < t10k_images->number_of_images; i++) { //for all test set
+    for(j = 0; j < k; j++) { //the first k from train set
+      (knn+j)->index = j;
+      (knn+j)->distance = euclidean_distance( get_img(train_images->images, j), get_img(t10k_images->images, i) );
+    }
+
+    for(; j < train_images->number_of_images; j++) { //the k nearest
+      double dist = euclidean_distance( get_img(train_images->images, j), get_img(t10k_images->images, i) );
+      for(l = 0; l < k; l++) {
+        if(dist < (knn+l)->distance) {
+          (knn+l)->index = j;
+          (knn+l)->distance = dist;
+          break;
+        }
+      }
+    }
+
+    prediction  = get_prediction();
+    label       = *(t10k_labels->labels + i);
+    printf("%u\t%u\t%u\n",i , prediction, label);
+    if(prediction == label) hit++;
+  }
+  printf("hit %u, total %u", hit, t10k_images->number_of_images);
+}
+
+int main(int argc, char ** argv) {
+  load_idx();
+  k=10;
+  knn = ( knn_t * ) calloc( sizeof(knn_t), k );
+  predict();
   return 0;
 }
