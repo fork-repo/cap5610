@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct magic_number_s {
   char a;
@@ -25,10 +26,10 @@ typedef struct images_s{
 
 #define get_img(head, index) (head + 28*28*index)
 
-images_t* train_images;
-labels_t* train_labels;
-images_t* t10k_images;
-labels_t* t10k_labels;
+// dataset
+unsigned char *images;
+unsigned char *labels;
+unsigned int train_start, train_stop, test_start, test_stop;
 
 // create a buffer and load the whole file
 void *load_file(char *file, long *size) {
@@ -78,6 +79,11 @@ unsigned short bit16conversion(unsigned short num) {
 
 // load the idx file and print the basic informations
 void load_idx(void){
+  images_t* train_images;
+  labels_t* train_labels;
+  images_t* t10k_images;
+  labels_t* t10k_labels;
+
   long train_images_size;
   long train_labels_size;
   long t10k_images_size;
@@ -102,6 +108,23 @@ void load_idx(void){
   printf("train labels: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of items: %u\n\n", train_labels_size, train_labels->magic_number.type, train_labels->magic_number.dimentions, train_labels->number_of_items);
   printf("t10k images: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of images: %u\nnumber of rows: %u\nnumber of columns: %u\n\n", t10k_images_size, t10k_images->magic_number.type, t10k_images->magic_number.dimentions, t10k_images->number_of_images, t10k_images->number_of_rows, t10k_images->number_of_columns);
   printf("t10k labels: %ld\ntype: 0x%.2x\ndimentions: %u\nnumber of items: %u\n\n", t10k_labels_size, t10k_labels->magic_number.type, t10k_labels->magic_number.dimentions, t10k_labels->number_of_items);
+
+  images = calloc(1, 28*28*(train_images->number_of_images + t10k_images->number_of_images));
+  labels = calloc(1, (train_images->number_of_images + t10k_images->number_of_images));
+  memcpy(images, train_images->images, 28*28*train_images->number_of_images);
+  memcpy(images + 28*28*train_images->number_of_images, t10k_images->images, 28*28*t10k_images->number_of_images);
+  memcpy(labels, train_labels->labels, train_images->number_of_images);
+  memcpy(labels + train_images->number_of_images, t10k_labels->labels, t10k_images->number_of_images);
+
+  train_start = 0;
+  train_stop  = train_images->number_of_images;
+  test_start  = train_images->number_of_images;
+  test_stop   = train_images->number_of_images + t10k_images->number_of_images;
+
+  free(train_images);
+  free(train_labels);
+  free(t10k_images);
+  free(t10k_labels);
 }
 
 // the k-nearest neighbors is here.
@@ -123,7 +146,7 @@ int get_prediction(){
   }
 
   for(i = 0; i < k; i++){
-    unsigned char label = train_labels->labels[(knn+i)->index];
+    unsigned char label = labels[(knn+i)->index];
     counter[label]++;
   }
 
@@ -150,14 +173,14 @@ void predict(void){
   unsigned int i,j,l;
   unsigned char prediction, label;
   unsigned int hit = 0;
-  for(i = 0; i < t10k_images->number_of_images; i++) { //for all test set
-    for(j = 0; j < k; j++) { //the first k from train set
+  for(i = test_start; i < test_stop; i++) { //for all test set
+    for(j = train_start; j < train_start + k; j++) { //the first k from train set
       (knn+j)->index = j;
-      (knn+j)->distance = euclidean_distance( get_img(train_images->images, j), get_img(t10k_images->images, i) );
+      (knn+j)->distance = euclidean_distance( get_img(images, j), get_img(images, i) );
     }
 
-    for(; j < train_images->number_of_images; j++) { //the k nearest
-      double dist = euclidean_distance( get_img(train_images->images, j), get_img(t10k_images->images, i) );
+    for(; j < train_stop; j++) { //the k nearest
+      double dist = euclidean_distance( get_img(images, j), get_img(images, i) );
       for(l = 0; l < k; l++) {
         if(dist < (knn+l)->distance) {
           (knn+l)->index = j;
@@ -168,11 +191,11 @@ void predict(void){
     }
 
     prediction  = get_prediction();
-    label       = *(t10k_labels->labels + i);
+    label       = *(labels + i);
     printf("%u\t%u\t%u\n",i , prediction, label);
     if(prediction == label) hit++;
   }
-  printf("hit %u, total %u", hit, t10k_images->number_of_images);
+  printf("hit %u, total %u", hit, train_stop - train_start);
 }
 
 int main(int argc, char ** argv) {
