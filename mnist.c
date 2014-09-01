@@ -158,8 +158,8 @@ int get_prediction(){
   return key;
 }
 
-// caculate the distance
-double euclidean_distance(unsigned char img1[], unsigned char img2[]) {
+// caculate the euclidean distance
+double distance(unsigned char img1[], unsigned char img2[]) {
   int i,j;
   double sum = 0, value;
   for(i = 0, j= 28*28; i < j; i++) {
@@ -176,11 +176,11 @@ void predict(void){
   for(i = test_start; i < test_stop; i++) { //for all test set
     for(j = train_start; j < train_start + k; j++) { //the first k from train set
       (knn+j)->index = j;
-      (knn+j)->distance = euclidean_distance( get_img(images, j), get_img(images, i) );
+      (knn+j)->distance = distance( get_img(images, j), get_img(images, i) );
     }
 
     for(; j < train_stop; j++) { //the k nearest
-      double dist = euclidean_distance( get_img(images, j), get_img(images, i) );
+      double dist = distance( get_img(images, j), get_img(images, i) );
       for(l = 0; l < k; l++) {
         if(dist < (knn+l)->distance) {
           (knn+l)->index = j;
