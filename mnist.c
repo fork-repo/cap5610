@@ -136,11 +136,11 @@ typedef struct cfg_s{
   unsigned int train_start, train_stop, test_start, test_stop;
   unsigned int thread;
   unsigned int total;
-  unsigned int hit;
+  unsigned int * hit;
 } cfg_t;
 
 // tell the majority results fom knn.
-int get_prediction(cfg_t * cfg){
+int get_prediction(cfg_t * cfg, unsigned int k){
   unsigned char key, i;
   unsigned int counter[10];
 
@@ -148,7 +148,7 @@ int get_prediction(cfg_t * cfg){
     counter[i] = 0;
   }
 
-  for(i = 0; i < cfg->k; i++){
+  for(i = cfg->k - k; i < cfg->k; i++){
     unsigned char label = labels[(cfg->knn+i)->index];
     counter[label]++;
   }
@@ -235,10 +235,14 @@ void * predict(void * arg){
       insert_neighbor(cfg, j, distance( get_img(images, j), get_img(images, i)));
     }
 
-    prediction  = get_prediction(cfg);
     label       = *(labels + i);
-    printf("%u\t%u\t%u\n",i , prediction, label);
-    if(prediction == label) cfg->hit++;
+    for(j = 1; j <= cfg->k; j++){
+      //printf("%u\t%u\t%u\n",j , prediction, label);
+      prediction  = get_prediction(cfg, j);
+      if(prediction == label) {
+        *(cfg->hit + j)+=1;
+      }
+    }
     cfg->total++;
   }
 
@@ -254,11 +258,15 @@ void start_predict(unsigned int k, \
   pthread_t tid[thread];
   cfg_t cfg[thread];
 
-  unsigned int i, hit = 0, total = 0;
+  unsigned int i, j, hit[k], total = 0;
+
+  for(i = 0; i < k; i++){
+    hit[i] = 0;
+  }
 
   for(i = 0; i < thread; i++) {
     cfg[i].k=k;
-    cfg[i].hit = 0;
+    cfg[i].hit = (unsigned int *) calloc( sizeof(unsigned int), k );
     cfg[i].total = 0;
     cfg[i].knn = ( knn_t * ) calloc( sizeof(knn_t), k );
     cfg[i].train_start  = train_start;
@@ -266,6 +274,11 @@ void start_predict(unsigned int k, \
     cfg[i].test_start   = test_start + i;
     cfg[i].test_stop    = test_stop;
     cfg[i].thread       = thread;
+
+    for(j = 0; j < k; j++){
+      *(cfg[i].hit + j) = 0;
+    }
+
     if(pthread_create(tid+i, NULL, predict, cfg+i)) {
       fprintf(stderr, "Error creating thread\n");
       exit(1);
@@ -277,10 +290,20 @@ void start_predict(unsigned int k, \
       fprintf(stderr, "Error joining thread\n");
       exit(1);
     }
-    hit += cfg[i].hit;
+
+    for(j = 0; j < k; j++){
+      hit[j] += *(cfg[i].hit + j);
+    }
+    free(cfg[i].hit);
+
     total += cfg[i].total;
   }
-  printf("hit %u, total %u", hit, total);
+
+  for(j = 0; j < k; j++){
+    printf("hit %u, ", hit[j]);
+  }
+  printf(", total %u\n", total);
+
 }
 
 int main(int argc, char ** argv) {
