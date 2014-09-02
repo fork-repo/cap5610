@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <pthread.h>
 
 typedef struct magic_number_s {
   char a;
@@ -133,6 +134,9 @@ typedef struct cfg_s{
   unsigned int number_of_neighbor;
   unsigned int k;
   unsigned int train_start, train_stop, test_start, test_stop;
+  unsigned int thread;
+  unsigned int total;
+  unsigned int hit;
 } cfg_t;
 
 // tell the majority results fom knn.
@@ -221,11 +225,11 @@ void insert_neighbor(cfg_t * cfg, unsigned int index, double distance) {
   }
 }
 
-void predict(cfg_t * cfg){
+void * predict(void * arg){
+  cfg_t * cfg = arg;
   unsigned int i,j;
   unsigned char prediction, label;
-  unsigned int hit = 0;
-  for(i = cfg->test_start; i < cfg->test_stop; i++) { //for all test set
+  for(i = cfg->test_start; i < cfg->test_stop; i+=cfg->thread) { //for all test set
     clear_neighbor(cfg);
     for(j = cfg->train_start; j < cfg->train_stop; j++) { //find knn
       insert_neighbor(cfg, j, distance( get_img(images, j), get_img(images, i)));
@@ -234,9 +238,11 @@ void predict(cfg_t * cfg){
     prediction  = get_prediction(cfg);
     label       = *(labels + i);
     printf("%u\t%u\t%u\n",i , prediction, label);
-    if(prediction == label) hit++;
+    if(prediction == label) cfg->hit++;
+    cfg->total++;
   }
-  printf("hit %u, total %u", hit, cfg->train_stop - cfg->train_start);
+
+  return NULL;
 }
 
 void start_predict(unsigned int k, \
@@ -245,14 +251,36 @@ void start_predict(unsigned int k, \
     unsigned int train_stop, \
     unsigned int test_start, \
     int test_stop) {
-  cfg_t cfg;
-  cfg.k=k;
-  cfg.knn = ( knn_t * ) calloc( sizeof(knn_t), cfg.k );
-  cfg.train_start = train_start;
-  cfg.train_stop  = train_stop;
-  cfg.test_start  = test_start;
-  cfg.test_stop   = test_stop;
-  predict(&cfg);
+  pthread_t tid[thread];
+  cfg_t cfg[thread];
+
+  unsigned int i, hit = 0, total = 0;
+
+  for(i = 0; i < thread; i++) {
+    cfg[i].k=k;
+    cfg[i].hit = 0;
+    cfg[i].total = 0;
+    cfg[i].knn = ( knn_t * ) calloc( sizeof(knn_t), k );
+    cfg[i].train_start  = train_start;
+    cfg[i].train_stop   = train_stop;
+    cfg[i].test_start   = test_start + i;
+    cfg[i].test_stop    = test_stop;
+    cfg[i].thread       = thread;
+    if(pthread_create(tid+i, NULL, predict, cfg+i)) {
+      fprintf(stderr, "Error creating thread\n");
+      exit(1);
+    }
+  }
+
+  for(i = 0; i < thread; i++) {
+    if(pthread_join(tid[i], NULL)) {
+      fprintf(stderr, "Error joining thread\n");
+      exit(1);
+    }
+    hit += cfg[i].hit;
+    total += cfg[i].total;
+  }
+  printf("hit %u, total %u", hit, total);
 }
 
 int main(int argc, char ** argv) {
@@ -273,8 +301,9 @@ int main(int argc, char ** argv) {
         return 1;
     }
   }
-     
+
   load_idx();
+  printf("k = %d, thread = %d\n", k, thread);
   start_predict(k, thread, 0, 60000, 60000, 70000);
   return 0;
 }

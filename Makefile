@@ -1,5 +1,5 @@
 CFLAGS	= -Wall -W -O2 -g 
-LIBS		= 
+LIBS		= -lpthread
 ALL 		=  mnist
 PWD			=  `pwd`
 
