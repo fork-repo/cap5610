@@ -3,3 +3,4 @@
 mnist
 validation
 cross-validation
+test/*

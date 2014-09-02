@@ -17,8 +17,8 @@ validation: validation.o
 cross-validation: cross-validation.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
-test: mnist prepare
-	$(PWD)/mnist
+test: mnist validation cross-validation prepare
+	$(PWD)/test.sh
 
 clean : 
 	rm -f *.o
