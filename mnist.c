@@ -2,6 +2,7 @@
 #include <malloc.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct magic_number_s {
   char a;
@@ -129,6 +130,7 @@ typedef struct knn_s{
 
 typedef struct cfg_s{
   knn_t * knn;
+  unsigned int number_of_neighbor;
   unsigned int k;
   unsigned int train_start, train_stop, test_start, test_stop;
 } cfg_t;
@@ -166,25 +168,67 @@ double distance(unsigned char img1[], unsigned char img2[]) {
   return sum;
 }
 
+// clear the knn list
+void clear_neighbor(cfg_t *cfg) {
+  unsigned int i;
+  for(i = 0; i < cfg->k; i++) {
+    (cfg->knn+i)->index = 0;
+    (cfg->knn+i)->distance = 0;
+  }
+  cfg->number_of_neighbor = 0;
+}
+
+// maintain the knn list
+void insert_neighbor(cfg_t * cfg, unsigned int index, double distance) {
+  unsigned int i;
+  unsigned int index1, index2;
+  double distance1, distance2;
+  if(cfg->number_of_neighbor < cfg->k) {
+    for(i = 0; i < cfg->number_of_neighbor; i++) {
+      if((cfg->knn+i)->distance < distance) {
+        break;
+      }
+    }
+
+    index1 = index;
+    distance1 = distance;
+    cfg->number_of_neighbor++;
+    for(; i < cfg->number_of_neighbor; i++) {
+      index2 = (cfg->knn+i)->index;
+      distance2 = (cfg->knn+i)->distance;
+      (cfg->knn+i)->index = index1;
+      (cfg->knn+i)->distance = distance1;
+      index1 = index2;
+      distance1 = distance2;
+    }
+  } else {
+    for(i = 0; i < cfg->number_of_neighbor; i++) {
+      if((cfg->knn+i)->distance < distance) {
+        break;
+      }
+    }
+    index1 = index;
+    distance1 = distance;
+    while(i != 0){
+      i--;
+      index2 = (cfg->knn+i)->index;
+      distance2 = (cfg->knn+i)->distance;
+      (cfg->knn+i)->index = index1;
+      (cfg->knn+i)->distance = distance1;
+      index1 = index2;
+      distance1 = distance2;
+    }
+  }
+}
+
 void predict(cfg_t * cfg){
-  unsigned int i,j,l;
+  unsigned int i,j;
   unsigned char prediction, label;
   unsigned int hit = 0;
   for(i = cfg->test_start; i < cfg->test_stop; i++) { //for all test set
-    for(j = cfg->train_start; j < cfg->train_start + cfg->k; j++) { //the first k from train set
-      (cfg->knn+j)->index = j;
-      (cfg->knn+j)->distance = distance( get_img(images, j), get_img(images, i) );
-    }
-
-    for(; j < cfg->train_stop; j++) { //the k nearest
-      double dist = distance( get_img(images, j), get_img(images, i) );
-      for(l = 0; l < cfg->k; l++) {
-        if(dist < (cfg->knn+l)->distance) {
-          (cfg->knn+l)->index = j;
-          (cfg->knn+l)->distance = dist;
-          break;
-        }
-      }
+    clear_neighbor(cfg);
+    for(j = cfg->train_start; j < cfg->train_stop; j++) { //find knn
+      insert_neighbor(cfg, j, distance( get_img(images, j), get_img(images, i)));
     }
 
     prediction  = get_prediction(cfg);
@@ -196,6 +240,7 @@ void predict(cfg_t * cfg){
 }
 
 void start_predict(unsigned int k, \
+    unsigned int thread, \
     unsigned int train_start, \
     unsigned int train_stop, \
     unsigned int test_start, \
@@ -211,7 +256,25 @@ void start_predict(unsigned int k, \
 }
 
 int main(int argc, char ** argv) {
+  int c;
+  int thread = 1;
+  int k = 1;
+
+  while ((c = getopt (argc, argv, "t:k:")) != -1) {
+    switch (c) {
+      case 't':
+        thread = atoi(optarg);
+        break;
+      case 'k':
+        k = atoi(optarg);
+        break;
+      default:
+        fprintf(stderr, "Usage: %s <-k K> <-t> thread\n", argv[0]);
+        return 1;
+    }
+  }
+     
   load_idx();
-  start_predict(10, 0, 60000, 60000, 70000);
+  start_predict(k, thread, 0, 60000, 60000, 70000);
   return 0;
 }
