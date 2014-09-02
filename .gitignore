@@ -2,3 +2,4 @@
 *.idx
 mnist
 validation
+cross-validation

@@ -1,6 +1,6 @@
 CFLAGS	= -Wall -W -O2 -g 
 LIBS		= -lpthread
-ALL 		=  mnist validation
+ALL 		=  mnist validation cross-validation
 PWD			=  `pwd`
 
 all: $(ALL)
@@ -12,6 +12,9 @@ mnist: mnist.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
 validation: validation.o
+	cc $(CFLAGS) -o $@ $^ $(LIBS)
+
+cross-validation: cross-validation.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
 test: mnist prepare
