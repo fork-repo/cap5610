@@ -29,7 +29,6 @@ typedef struct images_s{
 // dataset
 unsigned char *images;
 unsigned char *labels;
-unsigned int train_start, train_stop, test_start, test_stop;
 
 // create a buffer and load the whole file
 void *load_file(char *file, long *size) {
@@ -116,11 +115,6 @@ void load_idx(void){
   memcpy(labels, train_labels->labels, train_images->number_of_images);
   memcpy(labels + train_images->number_of_images, t10k_labels->labels, t10k_images->number_of_images);
 
-  train_start = 0;
-  train_stop  = train_images->number_of_images;
-  test_start  = train_images->number_of_images;
-  test_stop   = train_images->number_of_images + t10k_images->number_of_images;
-
   free(train_images);
   free(train_labels);
   free(t10k_images);
@@ -132,12 +126,15 @@ typedef struct knn_s{
   int index;
   double distance;
 } knn_t;
-knn_t * knn;
-unsigned int k;
-double max_distance_in_knn = 0;
+
+typedef struct cfg_s{
+  knn_t * knn;
+  unsigned int k;
+  unsigned int train_start, train_stop, test_start, test_stop;
+} cfg_t;
 
 // tell the majority results fom knn.
-int get_prediction(){
+int get_prediction(cfg_t * cfg){
   unsigned char key, i;
   unsigned int counter[10];
 
@@ -145,8 +142,8 @@ int get_prediction(){
     counter[i] = 0;
   }
 
-  for(i = 0; i < k; i++){
-    unsigned char label = labels[(knn+i)->index];
+  for(i = 0; i < cfg->k; i++){
+    unsigned char label = labels[(cfg->knn+i)->index];
     counter[label]++;
   }
 
@@ -169,39 +166,52 @@ double distance(unsigned char img1[], unsigned char img2[]) {
   return sum;
 }
 
-void predict(void){
+void predict(cfg_t * cfg){
   unsigned int i,j,l;
   unsigned char prediction, label;
   unsigned int hit = 0;
-  for(i = test_start; i < test_stop; i++) { //for all test set
-    for(j = train_start; j < train_start + k; j++) { //the first k from train set
-      (knn+j)->index = j;
-      (knn+j)->distance = distance( get_img(images, j), get_img(images, i) );
+  for(i = cfg->test_start; i < cfg->test_stop; i++) { //for all test set
+    for(j = cfg->train_start; j < cfg->train_start + cfg->k; j++) { //the first k from train set
+      (cfg->knn+j)->index = j;
+      (cfg->knn+j)->distance = distance( get_img(images, j), get_img(images, i) );
     }
 
-    for(; j < train_stop; j++) { //the k nearest
+    for(; j < cfg->train_stop; j++) { //the k nearest
       double dist = distance( get_img(images, j), get_img(images, i) );
-      for(l = 0; l < k; l++) {
-        if(dist < (knn+l)->distance) {
-          (knn+l)->index = j;
-          (knn+l)->distance = dist;
+      for(l = 0; l < cfg->k; l++) {
+        if(dist < (cfg->knn+l)->distance) {
+          (cfg->knn+l)->index = j;
+          (cfg->knn+l)->distance = dist;
           break;
         }
       }
     }
 
-    prediction  = get_prediction();
+    prediction  = get_prediction(cfg);
     label       = *(labels + i);
     printf("%u\t%u\t%u\n",i , prediction, label);
     if(prediction == label) hit++;
   }
-  printf("hit %u, total %u", hit, train_stop - train_start);
+  printf("hit %u, total %u", hit, cfg->train_stop - cfg->train_start);
+}
+
+void start_predict(unsigned int k, \
+    unsigned int train_start, \
+    unsigned int train_stop, \
+    unsigned int test_start, \
+    int test_stop) {
+  cfg_t cfg;
+  cfg.k=k;
+  cfg.knn = ( knn_t * ) calloc( sizeof(knn_t), cfg.k );
+  cfg.train_start = train_start;
+  cfg.train_stop  = train_stop;
+  cfg.test_start  = test_start;
+  cfg.test_stop   = test_stop;
+  predict(&cfg);
 }
 
 int main(int argc, char ** argv) {
   load_idx();
-  k=10;
-  knn = ( knn_t * ) calloc( sizeof(knn_t), k );
-  predict();
+  start_predict(10, 0, 60000, 60000, 70000);
   return 0;
 }
