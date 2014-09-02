@@ -258,7 +258,7 @@ void start_predict(unsigned int thread, \
   unsigned int i, k, validated_k, validated_hit, hit, total;
 
   validated_hit = validated_k = 0;
-  for(k = 5; k <= 25; k+=5){
+  for(k = 1; k <= 5; k++){
     hit = total = 0;
     for(i = 0; i < thread; i++) {
       cfg[i].k=k;

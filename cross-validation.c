@@ -254,7 +254,7 @@ void start_predict(unsigned int thread, \
   pthread_t tid[thread];
   cfg_t cfg[thread];
 
-  unsigned int test, hit, total, i, k = 5;
+  unsigned int test, hit, total, i, k = 1;
   for(test = 0; test < fold; test++) {
     hit = total = 0;
     for(i = 0; i < thread; i++) {
