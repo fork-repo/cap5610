@@ -1,6 +1,6 @@
 CFLAGS	= -Wall -W -O2 -g 
 LIBS		= -lpthread
-ALL 		=  mnist validation cross-validation
+ALL 		=  knn validation cross-validation
 PWD			=  `pwd`
 
 all: $(ALL)
@@ -8,7 +8,7 @@ all: $(ALL)
 %.o: %.c	
 	$(CC) $(CFLAGS) -c -o $*.o $<
 
-mnist: mnist.o
+knn: knn.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
 validation: validation.o
@@ -17,7 +17,7 @@ validation: validation.o
 cross-validation: cross-validation.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
-test: mnist validation cross-validation prepare
+test: knn validation cross-validation prepare
 	$(PWD)/test.sh
 
 clean : 
