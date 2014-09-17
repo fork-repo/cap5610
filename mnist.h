@@ -5,7 +5,8 @@
 
 extern unsigned char *mnist_images;
 extern unsigned char *mnist_labels;
-extern unsigned int  *mnist_count;
+extern unsigned int  mnist_train;
+extern unsigned int  mnist_test;
 
 void load_idx(void);
 

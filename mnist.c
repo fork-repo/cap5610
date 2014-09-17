@@ -30,6 +30,8 @@ typedef struct images_s{
 // dataset
 unsigned char *mnist_images;
 unsigned char *mnist_labels;
+unsigned int  mnist_train;
+unsigned int  mnist_test;
 
 // create a buffer and load the whole file
 static void *load_file(char *file, long *size) {
@@ -115,7 +117,8 @@ void load_idx(void){
   memcpy(mnist_images + 28*28*train_images->number_of_images, t10k_images->images, 28*28*t10k_images->number_of_images);
   memcpy(mnist_labels, train_labels->labels, train_images->number_of_images);
   memcpy(mnist_labels + train_images->number_of_images, t10k_labels->labels, t10k_images->number_of_images);
-
+  mnist_train = train_images->number_of_images;
+  mnist_test = t10k_images->number_of_images;
   free(train_images);
   free(train_labels);
   free(t10k_images);
