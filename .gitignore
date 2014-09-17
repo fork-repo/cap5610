@@ -1,6 +1,7 @@
 *.o
 *.idx
-mnist
 validation
 cross-validation
 test/*
+problem2
+knn

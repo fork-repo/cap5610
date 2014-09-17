@@ -1,12 +1,15 @@
 CFLAGS	= -Wall -W -O2 -g 
 LIBS		= -lpthread
-ALL 		=  knn validation cross-validation
+ALL 		=  knn validation cross-validation problem2
 PWD			=  `pwd`
 
 all: $(ALL)
 
 %.o: %.c	
 	$(CC) $(CFLAGS) -c -o $*.o $<
+
+problem2: problem2.o mnist.o
+	cc $(CFLAGS) -o $@ $^ $(LIBS)
 
 knn: knn.o
 	cc $(CFLAGS) -o $@ $^ $(LIBS)
