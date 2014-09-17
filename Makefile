@@ -1,5 +1,5 @@
 CFLAGS	= -Wall -W -O2 -g 
-LIBS		= -lpthread
+LIBS		= -lpthread -lm
 ALL 		=  knn validation cross-validation problem2
 PWD			=  `pwd`
 
